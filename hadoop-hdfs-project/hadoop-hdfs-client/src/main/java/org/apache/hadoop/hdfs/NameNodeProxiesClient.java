@@ -294,6 +294,7 @@ public class NameNodeProxiesClient {
         + "." + host;
     try {
       @SuppressWarnings("unchecked")
+      // 这里defaultValue是null，也就是如果没有配置proxy.provider，这里不会报ClassNotFound的错误，而是返回null
       Class<FailoverProxyProvider<T>> ret = (Class<FailoverProxyProvider<T>>)
           conf.getClass(configKey, null, FailoverProxyProvider.class);
       return ret;
