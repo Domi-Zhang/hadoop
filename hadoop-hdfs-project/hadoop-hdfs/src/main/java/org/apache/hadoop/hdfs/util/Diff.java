@@ -487,6 +487,8 @@ public class Diff<K, E extends Diff.Element<K>> {
    */
   public void combinePosterior(final Diff<K, E> posterior,
       final Processor<E> deletedProcesser) {
+    // K：例如byte[]
+    // E：例如INode
     final Iterator<E> createdIterator = posterior.getList(ListType.CREATED).iterator();
     final Iterator<E> deletedIterator = posterior.getList(ListType.DELETED).iterator();
 

@@ -48,6 +48,8 @@ public class LongBitFormat implements Serializable {
     OFFSET = previous == null? 0: previous.OFFSET + previous.LENGTH;
     LENGTH = length;
     MIN = min;
+    // 假如LENGTH=4，MAX=15(二进制1111)。如果采用1<<LENGTH的方式，得到的是1000即8，与MAX语义不符；
+    // 这里还可以考虑使用1<<(LENGTH+1)-1的方式，但如果LENGTH=64则可能出现未定义行为
     MAX = ((-1L) >>> (64 - LENGTH));
     MASK = MAX << OFFSET;
   }

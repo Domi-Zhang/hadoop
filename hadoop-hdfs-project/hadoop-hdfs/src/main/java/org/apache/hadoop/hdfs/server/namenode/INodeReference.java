@@ -401,11 +401,15 @@ public abstract class INodeReference extends INode {
     public void addReference(INodeReference ref) {
       if (ref instanceof WithName) {
         WithName refWithName = (WithName) ref;
+        // binarySearch如果找到元素返回其索引i，否则返回(-(insertion point) - 1)
         int i = Collections.binarySearch(withNameList, refWithName,
             WITHNAME_COMPARATOR);
+        // 即肯定没找到refWithName
         Preconditions.checkState(i < 0);
+        // 直接插入到有序列表中的相应位置去
         withNameList.add(-i - 1, refWithName);
       } else if (ref instanceof DstReference) {
+        // 设置当前WithCount的parent为ref(DstReference)
         setParentReference(ref);
       }
     }

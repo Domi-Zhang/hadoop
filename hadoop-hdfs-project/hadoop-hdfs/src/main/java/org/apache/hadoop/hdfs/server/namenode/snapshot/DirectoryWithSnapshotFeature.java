@@ -157,6 +157,8 @@ public class DirectoryWithSnapshotFeature implements INode.Feature {
     }
   }
 
+  // DirectoryDiff继承了AbstractINodeDiff，而后者代表一个diff链表，链表指针存储在posteriorDiff字段（指向之后发生
+  // 的diff），而ChildrenDiff是具体的一个diff，存储c-list和d-list
   /**
    * The difference of an {@link INodeDirectory} between two snapshots.
    */
@@ -225,6 +227,7 @@ public class DirectoryWithSnapshotFeature implements INode.Feature {
 
         private List<INode> initChildren() {
           if (children == null) {
+            // ChildrenDiff extends Diff<byte[], INode>
             final ChildrenDiff combined = new ChildrenDiff();
             for (DirectoryDiff d = DirectoryDiff.this; d != null; 
                 d = d.getPosterior()) {
