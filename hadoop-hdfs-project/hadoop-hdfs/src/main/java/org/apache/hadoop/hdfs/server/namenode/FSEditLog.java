@@ -283,9 +283,16 @@ public class FSEditLog implements LogsPurgeable {
       journalSet = new JournalSet(minimumRedundantJournals);
 
       for (URI u : dirs) {
+        // required标志的使用参见org.apache.hadoop.hdfs.server.namenode.JournalSet.mapJournalsAndReportErrors，它用于控制某
+        // 些journal必须写入成功，否则直接退出nn进程。注意shared editlog(journal node)一定是required的，这里只是在控制non-shared
+        // editlog(本地文件)是否required
         boolean required = FSNamesystem.getRequiredNamespaceEditsDirs(conf)
             .contains(u);
         if (u.getScheme().equals(NNStorage.LOCAL_URI_SCHEME)) {
+          // getStorageDirectory方法会在FSImage创建时所初始化的NNStorage中寻找与u匹配的路径，这意味着传入的dirs必须是FSImage创建时就指定
+          // 的。这个流程的检查作用很小（因为initJournals传入的dirs所取的配置和FSImage构造的配置是一样的，其实无需检查），主要作用是获得
+          // StorageDirectory实例
+          // 参见org.apache.hadoop.hdfs.server.namenode.FSImage.FSImage()构造函数
           StorageDirectory sd = storage.getStorageDirectory(u);
           if (sd != null) {
             journalSet.add(new FileJournalManager(conf, sd, storage),

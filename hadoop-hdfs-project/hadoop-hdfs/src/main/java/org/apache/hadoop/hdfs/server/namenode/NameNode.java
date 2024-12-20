@@ -1262,6 +1262,16 @@ public class NameNode extends ReconfigurableBase implements
   /**
    * Format a new shared edits dir and copy in enough edit log segments so that
    * the standby NN can start up.
+   *
+   * 这个方法应用给一个non-HA的namenode的，通过non-shared(本地) editlog来创建shared editlog(journal)，之后就可以将
+   * shared editlog发送给journal node了。
+   * （REF：如果集群从来没有配置过JournalNode，添加后。停掉NameNode，启动JournalNode，
+   * 再从NameNode节点执行hdfs namenode -initializeSharedEdits初始化JournalNode所需的数据）
+   *
+   * 1.读取non-shared editlog目录并初始化对应FSNamesystem（里面有FSImage）
+   * 2.读取shared editlog目录并创建FSImage
+   * 3.初始化2中的FSImage（比如format）
+   * 4.读取1中的non-shared editlog逐条log写入2中的shared editlog
    * 
    * @param conf configuration
    * @param force format regardless of whether or not the shared edits dir exists
