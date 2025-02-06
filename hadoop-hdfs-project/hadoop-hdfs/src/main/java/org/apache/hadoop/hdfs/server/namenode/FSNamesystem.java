@@ -1075,6 +1075,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     try {
       // We shouldn't be calling saveNamespace if we've come up in standby state.
       MetaRecoveryContext recovery = startOpt.createRecoveryContext();
+      // 这个方法会调用initEditLog，构建FSEditLog.journalSet集合
       final boolean staleImage
           = fsImage.recoverTransitionRead(startOpt, this, recovery);
       if (RollingUpgradeStartupOption.ROLLBACK.matches(startOpt) ||
@@ -1097,6 +1098,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       // we shouldn't do it when coming up in standby state
       if (!haEnabled || (haEnabled && startOpt == StartupOption.UPGRADE)
           || (haEnabled && startOpt == StartupOption.UPGRADEONLY)) {
+        // 初始化editLog文件输出流，并打开第一个日志段落（通过调用startLogSegment方法）
         fsImage.openEditLogForWrite(getEffectiveLayoutVersion());
       }
       success = true;
