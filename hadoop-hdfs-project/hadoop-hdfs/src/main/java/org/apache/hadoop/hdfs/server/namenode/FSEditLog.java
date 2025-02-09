@@ -327,6 +327,18 @@ public class FSEditLog implements LogsPurgeable {
   /**
    * Initialize the output stream for logging, opening the first
    * log segment.
+   *
+   * 非HA调用路径
+   * FSImage.openEditLogForWrite(int)  (org.apache.hadoop.hdfs.server.namenode)
+   *     FSNamesystem.loadFSImage(StartupOption)  (org.apache.hadoop.hdfs.server.namenode)
+   *         FSNamesystem.loadFromDisk(Configuration)  (org.apache.hadoop.hdfs.server.namenode)
+   *             NameNode.loadNamesystem(Configuration)  (org.apache.hadoop.hdfs.server.namenode)
+   *                 NameNode.initialize(Configuration)  (org.apache.hadoop.hdfs.server.namenode)
+   *                     NameNode.NameNode(Configuration, NamenodeRole)  (org.apache.hadoop.hdfs.server.namenode)
+   *                         NameNode.NameNode(Configuration)  (org.apache.hadoop.hdfs.server.namenode)
+   *                             NameNode.createNameNode(String[], Configuration)(2 usages)  (org.apache.hadoop.hdfs.server.namenode)
+   * HA调用路径
+   * FSNamesystem.startActiveServices()  (org.apache.hadoop.hdfs.server.namenode)
    */
   synchronized void openForWrite(int layoutVersion) throws IOException {
     Preconditions.checkState(state == State.BETWEEN_LOG_SEGMENTS,
@@ -336,6 +348,7 @@ public class FSEditLog implements LogsPurgeable {
     // Safety check: we should never start a segment if there are
     // newer txids readable.
     List<EditLogInputStream> streams = new ArrayList<EditLogInputStream>();
+    // 确认是否有editLog的lastTxId>=segmentTxId，如果有的话就报错
     journalSet.selectInputStreams(streams, segmentTxId, true, false);
     if (!streams.isEmpty()) {
       String error = String.format("Cannot start writing at txid %s " +

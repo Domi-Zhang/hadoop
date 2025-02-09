@@ -55,7 +55,7 @@ import com.google.common.collect.Lists;
 /**
  * Journal manager for the common case of edits files being written
  * to a storage directory.
- * 
+ *
  * Note: this class is not thread-safe and should be externally
  * synchronized.
  */
@@ -97,7 +97,7 @@ public class FileJournalManager implements JournalManager {
     this.errorReporter = errorReporter;
   }
 
-  @Override 
+  @Override
   public void close() throws IOException {}
   
   @Override
@@ -121,8 +121,10 @@ public class FileJournalManager implements JournalManager {
       int layoutVersion) throws IOException {
     try {
       currentInProgress = NNStorage.getInProgressEditsFile(sd, txid);
+      // 开启针对currentInProgress(这是个File)的FileOutputStream，后续就可以写入了
       EditLogOutputStream stm = new EditLogFileOutputStream(conf,
           currentInProgress, outputBufferCapacity);
+      // 在editLog的起始位置写入header信息
       stm.create(layoutVersion);
       return stm;
     } catch (IOException e) {
@@ -195,8 +197,8 @@ public class FileJournalManager implements JournalManager {
   /**
    * Find all editlog segments starting at or above the given txid.
    * @param firstTxId the txnid which to start looking
-   * @param inProgressOk whether or not to include the in-progress edit log 
-   *        segment       
+   * @param inProgressOk whether or not to include the in-progress edit log
+   *        segment
    * @return a list of remote edit logs
    * @throws IOException if edit logs cannot be listed.
    */
@@ -264,7 +266,7 @@ public class FileJournalManager implements JournalManager {
   /**
    * returns matching edit logs via the log directory. Simple helper function
    * that lists the files in the logDir and calls matchEditLogs(File[])
-   * 
+   *
    * @param logDir
    *          directory to match edit logs in
    * @return matched edit logs
@@ -368,6 +370,8 @@ public class FileJournalManager implements JournalManager {
           continue;
         }
         try {
+          // elf的lastTxId不能从文件名中获取，需要通过elf的inputStream挨个读取txId，直到最后或者=
+          // maxTxIdToScan结束
           elf.scanLog(maxTxIdToScan, true);
         } catch (IOException e) {
           LOG.error("got IOException while trying to validate header of " +
@@ -471,7 +475,7 @@ public class FileJournalManager implements JournalManager {
     } else if (ret.size() == 1) {
       return ret.get(0);
     } else {
-      throw new IllegalStateException("More than one log segment in " + 
+      throw new IllegalStateException("More than one log segment in " +
           dir + " starting at txid " + startTxId + ": " +
           Joiner.on(", ").join(ret));
     }
@@ -494,7 +498,7 @@ public class FileJournalManager implements JournalManager {
     private boolean hasCorruptHeader = false;
     private final boolean isInProgress;
 
-    final static Comparator<EditLogFile> COMPARE_BY_START_TXID 
+    final static Comparator<EditLogFile> COMPARE_BY_START_TXID
       = new Comparator<EditLogFile>() {
       @Override
       public int compare(EditLogFile a, EditLogFile b) {
@@ -512,8 +516,8 @@ public class FileJournalManager implements JournalManager {
         && (lastTxId >= firstTxId);
     }
     
-    EditLogFile(File file, long firstTxId, 
-                long lastTxId, boolean isInProgress) { 
+    EditLogFile(File file, long firstTxId,
+                long lastTxId, boolean isInProgress) {
       assert (lastTxId == HdfsServerConstants.INVALID_TXID && isInProgress)
         || (lastTxId != HdfsServerConstants.INVALID_TXID && lastTxId >= firstTxId);
       assert (firstTxId > 0) || (firstTxId == HdfsServerConstants.INVALID_TXID);
@@ -540,7 +544,7 @@ public class FileJournalManager implements JournalManager {
       return firstTxId <= txId && txId <= lastTxId;
     }
 
-    /** 
+    /**
      * Find out where the edit log ends.
      * This will update the lastTxId of the EditLogFile or
      * mark it as corrupt if it is.
@@ -584,7 +588,7 @@ public class FileJournalManager implements JournalManager {
       assert lastTxId == HdfsServerConstants.INVALID_TXID;
       renameSelf(".empty");
     }
-      
+    
     private void renameSelf(String newSuffix) throws IOException {
       File src = file;
       File dst = new File(src.getParent(), src.getName() + newSuffix);

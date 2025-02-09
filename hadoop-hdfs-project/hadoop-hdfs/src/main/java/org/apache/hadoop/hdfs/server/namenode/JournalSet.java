@@ -84,7 +84,7 @@ public class JournalSet implements JournalManager {
   /**
    * Container for a JournalManager paired with its currently
    * active stream.
-   * 
+   *
    * If a Journal gets disabled due to an error writing to its
    * stream, then the stream will be aborted and set to null.
    */
@@ -190,6 +190,8 @@ public class JournalSet implements JournalManager {
   // COW implementation is necessary since some users (eg the web ui) call
   // getAllJournalStreams() and then iterate. Since this is rarely
   // mutated, there is no performance concern.
+  // JournalAndStream实际就是JournalManager+EditLogOutputStream的包装
+  // 在FSEditLog.initJournals方法中，由journalSet.add(JournalManager)加入
   private final List<JournalAndStream> journals =
       new CopyOnWriteArrayList<JournalSet.JournalAndStream>();
   final int minimumRedundantJournals;
@@ -225,6 +227,7 @@ public class JournalSet implements JournalManager {
         jas.startLogSegment(txId, layoutVersion);
       }
     }, "starting log segment " + txId);
+    // 下面这个是JournalSet的内部类，可以直接访问JournalSet内部管理的多个Journal，必须对所有Journal循环写入
     return new JournalSetOutputStream();
   }
   
@@ -241,7 +244,7 @@ public class JournalSet implements JournalManager {
       }
     }, "finalize log segment " + firstTxId + ", " + lastTxId);
   }
-   
+  
   @Override
   public void close() throws IOException {
     mapJournalsAndReportErrors(new JournalClosure() {
@@ -260,8 +263,11 @@ public class JournalSet implements JournalManager {
   /**
    * In this function, we get a bunch of streams from all of our JournalManager
    * objects.  Then we add these to the collection one by one.
-   * 
-   * @param streams          The collection to add the streams to.  It may or 
+   *
+   * 从所有的journalSet(editLog的集合)中查找lastTxId>=segmentTxId的EditLogInputStream(一一对应editLog)
+   * ，结果保存在streams中
+   *
+   * @param streams          The collection to add the streams to.  It may or
    *                         may not be sorted-- this is up to the caller.
    * @param fromTxId         The transaction ID to start looking for streams at
    * @param inProgressOk     Should we consider unfinalized streams?
@@ -272,7 +278,7 @@ public class JournalSet implements JournalManager {
   @Override
   public void selectInputStreams(Collection<EditLogInputStream> streams,
       long fromTxId, boolean inProgressOk, boolean onlyDurableTxns) throws IOException {
-    final PriorityQueue<EditLogInputStream> allStreams = 
+    final PriorityQueue<EditLogInputStream> allStreams =
         new PriorityQueue<EditLogInputStream>(64,
             EDIT_LOG_INPUT_STREAM_COMPARATOR);
     for (JournalAndStream jas : journals) {
@@ -346,7 +352,7 @@ public class JournalSet implements JournalManager {
   /**
    * Returns true if there are no journals, all redundant journals are disabled,
    * or any required journals are disabled.
-   * 
+   *
    * @return True if there no journals, all redundant journals are disabled,
    * or any required journals are disabled.
    */
@@ -409,13 +415,13 @@ public class JournalSet implements JournalManager {
           abortAllJournals();
           // the current policy is to shutdown the NN on errors to shared edits
           // dir. There are many code paths to shared edits failures - syncs,
-          // roll of edits etc. All of them go through this common function 
-          // where the isRequired() check is made. Applying exit policy here 
+          // roll of edits etc. All of them go through this common function
+          // where the isRequired() check is made. Applying exit policy here
           // to catch all code paths.
           terminate(1, msg);
         } else {
           LOG.error("Error: " + status + " failed for (journal " + jas + ")", t);
-          badJAS.add(jas);          
+          badJAS.add(jas);
         }
       }
     }
@@ -651,7 +657,7 @@ public class JournalSet implements JournalManager {
    * Return a manifest of what finalized edit logs are available. All available
    * edit logs are returned starting from the transaction id passed. If
    * 'fromTxId' falls in the middle of a log, that log is returned as well.
-   * 
+   *
    * @param fromTxId Starting transaction id to read the logs.
    * @return RemoteEditLogManifest object.
    */
@@ -708,7 +714,7 @@ public class JournalSet implements JournalManager {
     
     if (LOG.isDebugEnabled()) {
       LOG.debug("Generated manifest for logs since " + fromTxId + ":"
-          + ret);      
+          + ret);
     }
     return ret;
   }
