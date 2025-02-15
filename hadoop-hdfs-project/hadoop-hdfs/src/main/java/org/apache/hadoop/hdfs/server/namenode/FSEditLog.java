@@ -165,6 +165,7 @@ public class FSEditLog implements LogsPurgeable {
   
   // the first txid of the log that's currently open for writing.
   // If this value is N, we are currently writing to edits_inprogress_N
+  // 在startLogSegment方法中设置
   private volatile long curSegmentTxId = HdfsServerConstants.INVALID_TXID;
   
   // the time of printing the statistics to the log file.
@@ -330,7 +331,7 @@ public class FSEditLog implements LogsPurgeable {
    *
    * 非HA调用路径
    * FSImage.openEditLogForWrite(int)  (org.apache.hadoop.hdfs.server.namenode)
-   *     FSNamesystem.loadFSImage(StartupOption)  (org.apache.hadoop.hdfs.server.namenode)
+   *     FSNamesystem.loadFSImage(StartupOption)  (org.apache.hadoop.hdfs.server.namenode) // 这个方法中会先后调用initEditLog和openForWrite
    *         FSNamesystem.loadFromDisk(Configuration)  (org.apache.hadoop.hdfs.server.namenode)
    *             NameNode.loadNamesystem(Configuration)  (org.apache.hadoop.hdfs.server.namenode)
    *                 NameNode.initialize(Configuration)  (org.apache.hadoop.hdfs.server.namenode)

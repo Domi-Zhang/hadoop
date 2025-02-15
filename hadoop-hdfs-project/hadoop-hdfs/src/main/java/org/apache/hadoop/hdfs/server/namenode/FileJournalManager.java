@@ -121,10 +121,10 @@ public class FileJournalManager implements JournalManager {
       int layoutVersion) throws IOException {
     try {
       currentInProgress = NNStorage.getInProgressEditsFile(sd, txid);
-      // 开启针对currentInProgress(这是个File)的FileOutputStream，后续就可以写入了
+      // 开启针对edits_inprogress_{txid}的FileOutputStream，后续就可以写入了
       EditLogOutputStream stm = new EditLogFileOutputStream(conf,
           currentInProgress, outputBufferCapacity);
-      // 在editLog的起始位置写入header信息
+      // 在editLog的起始位置写入header信息，editLog的文件结构为：[版本号,开始标识符(0),操作记录,操作记录,...]
       stm.create(layoutVersion);
       return stm;
     } catch (IOException e) {

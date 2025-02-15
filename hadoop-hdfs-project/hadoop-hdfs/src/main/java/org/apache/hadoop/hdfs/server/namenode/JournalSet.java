@@ -221,13 +221,14 @@ public class JournalSet implements JournalManager {
   @Override
   public EditLogOutputStream startLogSegment(final long txId,
       final int layoutVersion) throws IOException {
+    // 逐个journal调用startLogSegment
     mapJournalsAndReportErrors(new JournalClosure() {
       @Override
       public void apply(JournalAndStream jas) throws IOException {
         jas.startLogSegment(txId, layoutVersion);
       }
     }, "starting log segment " + txId);
-    // 下面这个是JournalSet的内部类，可以直接访问JournalSet内部管理的多个Journal，必须对所有Journal循环写入
+    // 下面这个是JournalSet的内部类，可以直接访问this(JournalSet)管理的多个Journal，这样就可以对this管理的Journal循环写入
     return new JournalSetOutputStream();
   }
   
