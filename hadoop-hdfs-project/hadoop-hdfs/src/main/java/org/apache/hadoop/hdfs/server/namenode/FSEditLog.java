@@ -490,6 +490,7 @@ public class FSEditLog implements LogsPurgeable {
       
       beginTransaction(op);
       // check if it is time to schedule an automatic sync
+      // 主要是看当前的log buffer是否已经超过配置的缓冲长度
       needsSync = doEditTransaction(op);
       if (needsSync) {
         isAutoSyncScheduled = true;
@@ -1395,6 +1396,7 @@ public class FSEditLog implements LogsPurgeable {
   /**
    * Finalize the current log segment.
    * Transitions from IN_SEGMENT state to BETWEEN_LOG_SEGMENTS state.
+   * 注意这个方法是synchronized(this)的，而logEdit也是synchronized(this)的，所以不会在log的过程中执行segment切换的操作
    */
   public synchronized void endCurrentLogSegment(boolean writeEndTxn) {
     LOG.info("Ending log segment " + curSegmentTxId +
@@ -1413,6 +1415,8 @@ public class FSEditLog implements LogsPurgeable {
     
     final long lastTxId = getLastWrittenTxId();
     final long lastSyncedTxId = getSyncTxId();
+    // lastTxId和lastSyncedTxId不一致的唯一情况就是：在logEdit中一个tx被开启(其实就是递增txid)但还没有被写入到logStream。
+    // 但这种情况不会发生，参见当前方法的说明
     Preconditions.checkArgument(lastTxId == lastSyncedTxId,
         "LastWrittenTxId %s is expected to be the same as lastSyncedTxId %s",
         lastTxId, lastSyncedTxId);
