@@ -42,7 +42,12 @@ import com.google.common.base.Preconditions;
  *   ... write data to its ultimate destination ...
  * }
  * </pre>
- *  
+ *
+ * 由于DataOutputStream是一个directly的Stream，这时候就引入了DataOutputBuffer适配器，它有一个Buffer类型的成员
+ * buffer，这个Buffer可以简单看作一个byte[]。这个Buffer继承自ByteArrayOutputStream，同时作为
+ * DataOutputStream的构造参数（DataOutputStream的写入目标就是它），这样通过DataOutputStream写入的字节都落入
+ * Buffer中被缓冲。这样就可以在需要的时候将缓冲的字节(Buffer)取出来，写入到真正的OutputStream中(writeTo方法)
+ *
  */
 @InterfaceAudience.LimitedPrivate({"HDFS", "MapReduce"})
 @InterfaceStability.Unstable

@@ -55,7 +55,7 @@ public class EditsDoubleBuffer {
     bufReady = new TxnBuffer(initBufferSize);
 
   }
-    
+  
   public void writeOp(FSEditLogOp op) throws IOException {
     bufCurrent.writeOp(op);
   }
@@ -116,7 +116,7 @@ public class EditsDoubleBuffer {
   }
 
   /**
-   * @return the transaction ID of the first transaction ready to be flushed 
+   * @return the transaction ID of the first transaction ready to be flushed
    */
   public long getFirstReadyTxId() {
     assert bufReady.firstTxId > 0;
@@ -137,6 +137,12 @@ public class EditsDoubleBuffer {
     return bufReady.size();
   }
   
+  /**
+   *  TxnBuffer的设计比较绕，它继承于DataOutputBuffer，有缓冲Stream写入字节的能力，能在需要的时候通过writeTo方
+   *  法写入到真正需要的OutputStream（参见DataOutputBuffer说明）。但是DataOutputBuffer本身只有writeByte、
+   *  writeInt之类的方法，如何write一个FSEditLogOp呢？就是通过FSEditLogOp.Writer这个包装类来实现的，它包装
+   *  一个DataOutputBuffer(也就是TxnBuffer自己)，然后将FSEditLogOp的写入转换为一系列writeXxx操作
+   */
   private static class TxnBuffer extends DataOutputBuffer {
     long firstTxId;
     int numTxns;
