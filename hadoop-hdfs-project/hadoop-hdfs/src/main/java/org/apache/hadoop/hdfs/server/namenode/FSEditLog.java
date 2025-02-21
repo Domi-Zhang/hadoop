@@ -422,6 +422,7 @@ public class FSEditLog implements LogsPurgeable {
     try {
       if (state == State.IN_SEGMENT) {
         assert editLogStream != null;
+        // 轮询等待直到isSyncRunning变为false
         waitForSyncToFinish();
         endCurrentLogSegment(true);
       }
