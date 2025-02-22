@@ -63,7 +63,7 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
 
   /**
    * Creates output buffers and file object.
-   * 
+   *
    * @param conf
    *          Configuration object
    * @param name
@@ -87,6 +87,10 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
     } else {
       rp = new RandomAccessFile(name, "rw");
     }
+    // 注意fp和fc的写入是独立的，fp始终是追加到末尾进行写入，例如fc是否调用position并不影响fp的写入行为，但这里为什
+    // 么要调用fc.position呢？ 关键点就是preallocate会执行fc的写入，写入内容为fill成员变量，需要注意fp内部是
+    // RandomAccessFile，所以fc写入后fp的末尾指针没有变，始终还是那个位置，物理上是覆盖写，逻辑上是追加写。
+    // 通过preallocate，fp在追加数据时，文件始终是有空间可以写入的。
     fp = new FileOutputStream(rp.getFD()); // open for append
     fc = rp.getChannel();
     fc.position(fc.size());
@@ -125,7 +129,7 @@ public class EditLogFileOutputStream extends EditLogOutputStream {
   /**
    * Write header information for this EditLogFileOutputStream to the provided
    * DataOutputSream.
-   * 
+   *
    * @param layoutVersion the LayoutVersion of the EditLog
    * @param out the output stream to write the header to.
    * @throws IOException in the event of error writing to the stream.
