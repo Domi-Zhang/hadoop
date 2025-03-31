@@ -187,7 +187,8 @@ public class FSEditLog implements LogsPurgeable {
   private final Configuration conf;
   
   private final List<URI> editsDirs;
-  
+
+  // ThreadLocal<<FSEditLogOpCodes, FSEditLogOp>>
   protected final OpInstanceCache cache = new OpInstanceCache();
   
   /**
@@ -479,6 +480,8 @@ public class FSEditLog implements LogsPurgeable {
    * Additionally, this will sync the edit log if required by the underlying
    * edit stream's automatic sync policy (e.g. when the buffer is full, or
    * if a time interval has elapsed).
+   *
+   * 注意内部的synchronized，保证了txId的单调递增性
    */
   void logEdit(final FSEditLogOp op) {
     boolean needsSync = false;
@@ -491,7 +494,7 @@ public class FSEditLog implements LogsPurgeable {
       
       beginTransaction(op);
       // check if it is time to schedule an automatic sync
-      // 主要是看当前的log buffer是否已经超过配置的缓冲长度
+      // needsSync主要是看当前的log buffer是否已经超过配置的缓冲长度
       needsSync = doEditTransaction(op);
       if (needsSync) {
         isAutoSyncScheduled = true;
@@ -729,12 +732,12 @@ public class FSEditLog implements LogsPurgeable {
           editsBatchedInSync = lastJournalledTxId - synctxid - 1;
           isSyncRunning = true;
           sync = true;
-          
-          // swap buffers
+
           try {
             if (journalSet.isEmpty()) {
               throw new IOException("No journals available to flush");
             }
+            // EditsDoubleBuffer在这里进行swap
             editLogStream.setReadyToFlush();
           } catch (IOException e) {
             final String msg =
