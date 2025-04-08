@@ -468,6 +468,7 @@ public class StringUtils {
       return emptyStringArray;
     }
 
+    // 匹配逗号或换行符，其前后可以有任意数量的空白字符（包括没有空白字符）
     return str.trim().split("\\s*[,\n]\\s*");
   }
 

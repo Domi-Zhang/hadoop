@@ -1425,6 +1425,7 @@ public class FSEditLog implements LogsPurgeable {
         "LastWrittenTxId %s is expected to be the same as lastSyncedTxId %s",
         lastTxId, lastSyncedTxId);
     try {
+      // 将in_progress文件rename到log文件
       journalSet.finalizeLogSegment(curSegmentTxId, lastTxId);
       editLogStream = null;
     } catch (IOException e) {
