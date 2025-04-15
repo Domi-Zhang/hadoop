@@ -726,6 +726,10 @@ public class FSEditLog implements LogsPurgeable {
           assert lastJournalledTxId <= txid : "lastJournalledTxId exceeds txid";
           // The stream has already been flushed, or there are no active streams
           // We still try to flush up to mytxid
+          // synctxid < mytxid <= txid
+          // lastJournalledTxId <= txid
+          // 情况1：synctxid < lastJournalledTxId <= txid，此时刷盘id=lastJournalledTxId
+          // 情况2：lastJournalledTxId <= synctxid < mytxid <= txid，此时刷盘id=mytxid
           if (lastJournalledTxId <= synctxid) {
             lastJournalledTxId = mytxid;
           }

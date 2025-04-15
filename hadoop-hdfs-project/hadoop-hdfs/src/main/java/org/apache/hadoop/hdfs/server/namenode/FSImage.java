@@ -1554,6 +1554,7 @@ public class FSImage implements Closeable {
   /**
    * This method holds a lock of FSEditLog to get the correct value.
    * This method must not be used for metrics.
+   * restore(启动、恢复)或editLog.write(实时写入)两种场景下的txId取其大者
    */
   public long getCorrectLastAppliedOrWrittenTxId() {
     return Math.max(lastAppliedTxId,
