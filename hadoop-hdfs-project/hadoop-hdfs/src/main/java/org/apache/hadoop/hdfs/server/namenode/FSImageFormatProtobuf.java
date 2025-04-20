@@ -804,6 +804,8 @@ public final class FSImageFormatProtobuf {
         sectionOutputStream = underlyingOutputStream;
       }
 
+      // 创建section——NS_INFO(表示当前Namespace的公共信息，例如最新分配的blockId、txId等)，写入到到sectionOutputStream中。
+      // 随后将该section的信息(包括offset、length等）添加到b(FileSummary).sections中
       saveNameSystemSection(b);
       // Check for cancellation right after serializing the name system section.
       // Some unit tests, such as TestSaveNamespace#testCancelSaveNameSpace

@@ -1008,6 +1008,7 @@ public class FSImage implements Closeable {
    */
   void saveFSImage(SaveNamespaceContext context, StorageDirectory sd,
                    NameNodeFile dstType) throws IOException {
+    // dsType取值可能有 IMAGE_ROLLBACK("fsimage_rollback") / EDITS_NEW ("edits.new")
     long txid = context.getTxId();
     File newFile = NNStorage.getStorageFile(sd, NameNodeFile.IMAGE_NEW, txid);
     File dstFile = NNStorage.getStorageFile(sd, dstType, txid);

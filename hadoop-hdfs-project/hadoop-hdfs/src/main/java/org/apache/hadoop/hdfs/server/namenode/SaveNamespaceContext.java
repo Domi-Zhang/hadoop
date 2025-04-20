@@ -36,6 +36,8 @@ import com.google.common.base.Preconditions;
 @InterfaceAudience.Private
 public class SaveNamespaceContext {
   private final FSNamesystem sourceNamesystem;
+  // 来自于org.apache.hadoop.hdfs.server.namenode.FSImage.getCorrectLastAppliedOrWrittenTxId
+  // restore(启动、恢复)或editLog.write(实时写入)两种场景下的txId取其大者
   private final long txid;
   private final List<StorageDirectory> errorSDs =
     Collections.synchronizedList(new ArrayList<StorageDirectory>());
