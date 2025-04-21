@@ -812,6 +812,9 @@ public final class FSImageFormatProtobuf {
       // depends on this behavior.
       context.checkCancelled();
 
+      // 下面依次以分段的组织方式记录INodes、Snapshots和StringTable等数据，每个段都会在Summary中登记offset和
+      // length，大部分还有总结及声明性质的Section对象（例如INode段就有INodeSection，记录了lastInodeId和
+      // INode的数量）
       Step step = new Step(StepType.INODES, filePath);
       prog.beginStep(Phase.SAVING_CHECKPOINT, step);
       // Count number of non-fatal errors when saving inodes and snapshots.
@@ -835,6 +838,8 @@ public final class FSImageFormatProtobuf {
       // the buffered stream (which is potentially compressed) first.
       flushSectionOutputStream();
 
+      // 将FileSummary以Protobuf格式记录到underlyingOutputStream中，FileSummary相当于一个索引性质的数据结构，
+      // 记录了各个Section在FsImage文件中的offset和length；
       FileSummary summary = b.build();
       saveFileSummary(underlyingOutputStream, summary);
       underlyingOutputStream.close();

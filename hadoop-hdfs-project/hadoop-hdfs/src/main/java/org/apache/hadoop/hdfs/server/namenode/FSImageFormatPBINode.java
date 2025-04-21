@@ -722,7 +722,18 @@ public final class FSImageFormatPBINode {
           FSImageFormatProtobuf.SectionName.INODE_DIR,
           FSImageFormatProtobuf.SectionName.INODE_DIR_SUB);
     }
-
+    
+    /**
+     * 1.从FSNamesystem.dir.inodeMap获取INodeMap；
+     * 2.通过INodeMap构造INodeSection(这是一个声明性质的结构体，包含lastInodeId和Inode数量)写入到out(以proto
+     * 的格式)
+     * 3.依次将INode(类型是INodeWithAdditionalFields)写入到out中。INode分为File/Directory/Symlink三种子
+     * 类型，它们都有id/name/type公共字段，以及一些独有的字段(例如Symlink就有target)。写入的每条记录格式都
+     * 是Protobuf；
+     * 4.最后在summary中记录INode段的offset和length；
+     * @param out
+     * @throws IOException
+     */
     void serializeINodeSection(OutputStream out) throws IOException {
       INodeMap inodesMap = fsn.dir.getINodeMap();
 
