@@ -1008,10 +1008,13 @@ public class FSImage implements Closeable {
    */
   void saveFSImage(SaveNamespaceContext context, StorageDirectory sd,
                    NameNodeFile dstType) throws IOException {
-    // dsType取值可能有 IMAGE_ROLLBACK("fsimage_rollback") / EDITS_NEW ("edits.new")
     long txid = context.getTxId();
+    // newFile就是fsimage.ckpt
     File newFile = NNStorage.getStorageFile(sd, NameNodeFile.IMAGE_NEW, txid);
+    // dsType取值可能有 IMAGE_ROLLBACK("fsimage_rollback") / EDITS_NEW ("edits.new")，即dstFile就是fsimage_rollback或
+    // edits.new
     File dstFile = NNStorage.getStorageFile(sd, dstType, txid);
+    // FsImage保存到newFile(fsimage.ckpt)中，而其md5会被追加到{dstFile}.md5文件中，格式为{md5}*{dstFile}.md5\n
     
     FSImageFormatProtobuf.Saver saver = new FSImageFormatProtobuf.Saver(context,
         conf);
@@ -1217,6 +1220,7 @@ public class FSImage implements Closeable {
   private synchronized void saveFSImageInAllDirs(FSNamesystem source,
                                                  NameNodeFile nnf, long txid, Canceler canceler)
       throws IOException {
+    // nnf的取值可能有IMAGE_ROLLBACK("fsimage_rollback")或IMAGE("fsimage")
     StartupProgress prog = NameNode.getStartupProgress();
     prog.beginPhase(Phase.SAVING_CHECKPOINT);
     if (storage.getNumStorageDirs(NameNodeDirType.IMAGE) == 0) {
@@ -1366,6 +1370,7 @@ public class FSImage implements Closeable {
       }
     }
     if (renameMD5) {
+      // 将{fromFile}.md5中第一行的md5读出(格式为{fromFile}*{md5})，以{toFile}*{md5}的格式写入到{toFile}.md5文件中
       MD5FileUtils.renameMD5File(fromFile, toFile);
     }
   }
