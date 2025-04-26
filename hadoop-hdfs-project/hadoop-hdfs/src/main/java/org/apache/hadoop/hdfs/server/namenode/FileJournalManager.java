@@ -347,6 +347,7 @@ public class FileJournalManager implements JournalManager {
       Collection<EditLogInputStream> streams, long fromTxId,
       boolean inProgressOk, boolean onlyDurableTxns)
       throws IOException {
+    // 从sd.getCurrentDir()中匹配正常关闭的editLog段文件（文件名{from_txid}-{to_txid}）
     List<EditLogFile> elfs = matchEditLogs(sd.getCurrentDir());
     if (LOG.isDebugEnabled()) {
       LOG.debug(this + ": selecting input streams starting at " + fromTxId +

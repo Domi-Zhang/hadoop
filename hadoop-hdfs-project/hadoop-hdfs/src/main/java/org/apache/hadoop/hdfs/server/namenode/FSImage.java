@@ -861,6 +861,8 @@ public class FSImage implements Closeable {
       // 1. 前者的uri集合是editsDirs，而后者是sharedEditsDirs。
       // 2. 前者调用后将state设置为BETWEEN_LOG_SEGMENTS，而后者为OPEN_FOR_READING
       editLog.initJournalsForWrite();
+      // 这个方法用于整理未正常关闭的editLog，例如删除长度为0的editLog、将未关闭的editLog重命名为正常关闭的段（
+      // in_progress->{start_txid}-{end_txid}）
       editLog.recoverUnclosedStreams();
     } else if (HAUtil.isHAEnabled(conf, nameserviceId)
         && (startOpt == StartupOption.UPGRADE
@@ -1256,7 +1258,9 @@ public class FSImage implements Closeable {
         ctx.checkCancelled(); // throws
         assert false : "should have thrown above!";
       }
-      
+
+      // 上面的多线程在每个目录下都生成了fsimage.ckpt，现在将将每个目录下的fsimage.ckpt都重命名
+      // 为nnf（fsimage_rollback或fsimage）
       renameCheckpoint(txid, NameNodeFile.IMAGE_NEW, nnf, false);
       
       // Since we now have a new checkpoint, we can clean up some
