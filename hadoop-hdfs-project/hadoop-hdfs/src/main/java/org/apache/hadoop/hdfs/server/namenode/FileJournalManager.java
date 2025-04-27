@@ -357,7 +357,10 @@ public class FileJournalManager implements JournalManager {
     addStreamsToCollectionFromFiles(elfs, streams, fromTxId,
         getLastReadableTxId(), inProgressOk);
   }
-  
+
+  // 从elfs中过滤>=fromTxId的editLog，并构造为EditLogInputStream加入到streams中。其中maxTxIdToScan和
+  // inProgressOk只针对inProgress的editLog有关，inProgressOk控制是否包含inProgress的editLog，如果需要
+  // 包含，则最多读到maxTxIdToScan截止（因为inProgress的editLog是不断增长的，所以得有个读取上限）
   static void addStreamsToCollectionFromFiles(Collection<EditLogFile> elfs,
       Collection<EditLogInputStream> streams, long fromTxId,
       long maxTxIdToScan, boolean inProgressOk) {
@@ -371,8 +374,8 @@ public class FileJournalManager implements JournalManager {
           continue;
         }
         try {
-          // elf的lastTxId不能从文件名中获取，需要通过elf的inputStream挨个读取txId，直到最后或者=
-          // maxTxIdToScan结束
+          // in_progress的editLog的lastTxId不能从文件名中获取，需要通过elf的inputStream挨个读取txId，
+          // 直到最后或者=maxTxIdToScan时结束
           elf.scanLog(maxTxIdToScan, true);
         } catch (IOException e) {
           LOG.error("got IOException while trying to validate header of " +
