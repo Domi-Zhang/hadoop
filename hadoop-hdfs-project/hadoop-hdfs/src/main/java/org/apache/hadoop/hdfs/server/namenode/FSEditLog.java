@@ -1663,7 +1663,7 @@ public class FSEditLog implements LogsPurgeable {
       jas.getManager().discardSegments(markerTxid);
     }
   }
-  
+
   @Override
   public void selectInputStreams(Collection<EditLogInputStream> streams,
                                  long fromTxId, boolean inProgressOk, boolean onlyDurableTxns)
@@ -1676,7 +1676,18 @@ public class FSEditLog implements LogsPurgeable {
       long fromTxId, long toAtLeastTxId) throws IOException {
     return selectInputStreams(fromTxId, toAtLeastTxId, null, true, false);
   }
-  
+
+  /**
+   *   从所有(有效的)editLog集合中过滤包含[fromTxId,toAtLeastTxId]的editLog，并构造为EditLogInputStream集合。
+   *   其中inProgressOk只针对inProgress的editLog有关，inProgressOk控制是否包含inProgress的editLog，如果需要
+   *   包含，则最多读到toAtLeastTxId截止（因为inProgress的editLog是不断增长的，所以得有个读取上限）
+   * @param fromTxId
+   * @param toAtLeastTxId
+   * @param recovery
+   * @param inProgressOK
+   * @return
+   * @throws IOException
+   */
   public Collection<EditLogInputStream> selectInputStreams(
       long fromTxId, long toAtLeastTxId, MetaRecoveryContext recovery,
       boolean inProgressOK) throws IOException {
@@ -1728,6 +1739,17 @@ public class FSEditLog implements LogsPurgeable {
    * Note: we're assuming that the list is sorted and that txid ranges don't
    * overlap.  This could be done better and with more generality with an
    * interval tree.
+   * <p>
+   * 检查streams是否包含[fromTxId,toAtLeastTxId]，且各stream之间是否有txId的空隙。即是否能从fromTxId
+   * 连续读到toAtLeastTxId。
+   * 情况说明：
+   * error1: 第一个stream的起始txId(txA)就已经大于txId了，说明此时没有任何一个stream包含txId
+   * error2: 当遍历到stream(txB-txC)时txId应该为txB+1，如果出现了txC>txId的情况，说明txB和txC之间出现了
+   *        空隙
+   * 结束情况：txId=txD+1，此时满足txId>toAtLeastTxId，方法直接返回
+   * txId(error1)   txA     txId(ok)       txB  txId(error2)   txC    toAtLeastTxId      txD
+   * ---------------++++++++++++++++++++++++-------------------+++++++++++++++++++++++++++--
+   * </p>
    */
   private void checkForGaps(List<EditLogInputStream> streams, long fromTxId,
                             long toAtLeastTxId, boolean inProgressOk) throws IOException {
@@ -1735,13 +1757,16 @@ public class FSEditLog implements LogsPurgeable {
     long txId = fromTxId;
     while (true) {
       if (txId > toAtLeastTxId) {
+        // 参见上面“结束情况”的说明
         return;
       }
       if (!iter.hasNext()) {
+        // 此时还没有读到toAtLeastTxId，stream就已经没有了，也算错误
         break;
       }
       EditLogInputStream elis = iter.next();
       if (elis.getFirstTxId() > txId) {
+        // 参见上面的error1和error2
         break;
       }
       long next = elis.getLastTxId();
