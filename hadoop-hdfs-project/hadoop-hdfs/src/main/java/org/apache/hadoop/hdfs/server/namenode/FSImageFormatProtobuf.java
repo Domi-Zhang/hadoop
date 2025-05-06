@@ -234,6 +234,10 @@ public final class FSImageFormatProtobuf {
       long start = Time.monotonicNow();
       DigestThread dt = new DigestThread(file);
       dt.start();
+      // 后文loadInternal会同时用到file的RandomAccessFile和FileInputStream包装，FileInputStream.getChannel得到的FileChannel和
+      // RandomAccessFile都可以做随机访问，为什么还需要单独new一个RandomAccessFile？
+      // 主要是FileChannel是流式读取方式，需要ByteBuffer的协助并按具体的数据类型进行读取，这正是protobuf需要的数据读取方式。
+      // 而RandomAccessFile可以直接读取指定位置的字节数组，方便一些length之类的元数据信息读取
       RandomAccessFile raFile = new RandomAccessFile(file, "r");
       FileInputStream fin = new FileInputStream(file);
       try {
@@ -932,6 +936,11 @@ public final class FSImageFormatProtobuf {
     STRING_TABLE("STRING_TABLE"),
     EXTENDED_ACL("EXTENDED_ACL"),
     INODE("INODE"),
+    // 所有XXX_SUB Section都可以视为是XXX的分片，用于FsImage的并行加载。其原理是不改变原有FsImage的存储内容，而在FileSummary上进行扩展。
+    // 例如：在没有分片(没有_SUB)的时候FileSummary中只有一个INODE Section，而开启分片后每往FsImage写入一批INode都会在FileSummary中添加
+    // 一个INODE_SUB的Section，所有INode写入完成后再统一写一个INODE Section。加载的时候会先筛选出INODE_SUB Section列表（并丢弃
+    // INODE Section）分发给多个加载线程，每个线程根据INODE_SUB Section中标记的offset各自加载一段FsImage中的INode数据。
+    // 参见https://hexiaoqiao.github.io/blog/2021/02/27/namenode-fsimage-loading-optimization/
     INODE_SUB("INODE_SUB"),
     INODE_REFERENCE("INODE_REFERENCE"),
     INODE_REFERENCE_SUB("INODE_REFERENCE_SUB"),
