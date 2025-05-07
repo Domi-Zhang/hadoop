@@ -672,6 +672,10 @@ public class FSImage implements Closeable {
    * loading or saving fsimage should therefore only see symlinks as
    * the final path component, and the functions called below do not
    * resolve symlinks that are the final path component.
+   *
+   * 首先读取FsImage文件(其中是一系列ProtoBuf格式序列化的对象实例，例如INode)，将读取到的各种实例都写入到target(FSNamesystem)中，
+   * 接着遍历EditLog文件集合，逐个文件读取其中的editLog，不断applyLog到target(FSNamesystem)中，最后完成整个load过程
+   *
    * 调用链如下：
    * FSImage.loadFSImage(FSNamesystem, StartupOption, MetaRecoveryContext)
    *   FSImage.doUpgrade(FSNamesystem)
@@ -759,6 +763,7 @@ public class FSImage implements Closeable {
       try {
         imageFile = imageFiles.get(i);
         loadFSImageFile(target, recovery, imageFile, startOpt);
+        // 注意这个break
         break;
       } catch (IllegalReservedPathException ie) {
         throw new IOException("Failed to load image from " + imageFile,
@@ -788,6 +793,7 @@ public class FSImage implements Closeable {
     } else {
       // Trigger the rollback for rolling upgrade. Here lastAppliedTxId equals
       // to the last txid in rollback fsimage.
+      // loadFSImageFile方法中会将FsImage中load到的最大txId设置到lastAppliedTxId，意即丢弃FsImage之外的commit
       rollingRollback(lastAppliedTxId + 1, imageFiles.get(0).getCheckpointTxId());
       needToSave = false;
     }
@@ -916,7 +922,17 @@ public class FSImage implements Closeable {
                         FSNamesystem target) throws IOException {
     return loadEdits(editStreams, target, null, null);
   }
-  
+
+  /**
+   * 遍历editStreams（都是EditLog文件，传入前已排序），将每个文件中的editLog不断读出并applyLog到target(FSNamesystem)中。同时更新
+   * lastAppliedTxId为读取到的EditLog文件中的最大txId
+   * @param editStreams
+   * @param target
+   * @param startOpt
+   * @param recovery
+   * @return
+   * @throws IOException
+   */
   private long loadEdits(Iterable<EditLogInputStream> editStreams,
                          FSNamesystem target, StartupOption startOpt, MetaRecoveryContext recovery)
       throws IOException {
@@ -926,6 +942,7 @@ public class FSImage implements Closeable {
     
     long prevLastAppliedTxId = lastAppliedTxId;
     try {
+      // 将target(FSNamesystem)通过构造函数传入FSEditLogLoader，后续的数据读取操作都是写入到target中
       FSEditLogLoader loader = new FSEditLogLoader(target, lastAppliedTxId);
       
       // Load latest edits
@@ -941,6 +958,7 @@ public class FSImage implements Closeable {
               (lastAppliedTxId + 1) + logSuppressed);
         }
         try {
+          // 不断从editIn(EditLogInputStream)中读取EditLog，然后逐个applyLog到loader持有的FSNamesystem中
           loader.loadFSEdits(editIn, lastAppliedTxId + 1, startOpt, recovery);
         } finally {
           // Update lastAppliedTxId even in case of error, since some ops may

@@ -220,9 +220,12 @@ public class FSImageFormat {
         byte[] magic = new byte[FSImageUtil.MAGIC_HEADER.length];
         IOUtils.readFully(is, magic, 0, magic.length);
         if (Arrays.equals(magic, FSImageUtil.MAGIC_HEADER)) {
+          // 将fsn(FSNamesystem)通过构造函数传入Loader，这就是整个load过程的目标载体
           FSImageFormatProtobuf.Loader loader = new FSImageFormatProtobuf.Loader(
               conf, fsn, requireSameLayoutVersion);
           impl = loader;
+          // 读取file执行load，file中是一堆Protobuf格式的INode、InodeDir和Snapshot等二进制流，并在末尾有有一段Summary记录了这些
+          // 数据段的offset和length。读取到的INode等实体会写入到loader持有的fsn(FSNamesystem)中
           loader.load(file);
         } else {
           Loader loader = new Loader(conf, fsn);
