@@ -49,7 +49,15 @@ public final class FSImageUtil {
 
     return true;
   }
-
+  
+  /**
+   * 从file的末尾处读出FileSummary，并校验ondiskVersion和layoutVersion是否与当前运行的hdfs版本兼容。
+   * file的末尾4字节是FileSummary的长度(summaryLength)，紧接着再往前是FileSummary的数据(长度summaryLength)。
+   *
+   * @param file
+   * @return
+   * @throws IOException
+   */
   public static FileSummary loadSummary(RandomAccessFile file)
       throws IOException {
     final int FILE_LENGTH_FIELD_SIZE = 4;

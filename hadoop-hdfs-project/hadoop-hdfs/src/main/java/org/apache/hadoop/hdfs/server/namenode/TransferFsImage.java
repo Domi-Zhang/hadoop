@@ -249,6 +249,8 @@ public class TransferFsImage {
       NNStorage storage, NameNodeFile nnf, long txId, Canceler canceler)
       throws IOException {
 
+    // nnf的取值可能是IMAGE("fsimage")或IMAGE_ROLLBACK("fsimage_rollback")，下面这行代码是在image目录查找
+    // fsimage_{txId}(或fsimage_rollback_{txId})。参数中传入的txId就是imageFile中最大的txId
     File imageFile = storage.findImageFile(nnf, txId);
     if (imageFile == null) {
       throw new IOException("Could not find image with txid " + txId);
@@ -406,7 +408,7 @@ public class TransferFsImage {
    * Client-side Method to fetch file from a server
    * Copies the response from the URL to a list of local files.
    * @param dstStorage if an error occurs writing to one of the files,
-   *                   this storage object will be notified. 
+   *                   this storage object will be notified.
    * @return a digest of the received file if getChecksum is true
    */
   static MD5Hash getFileClient(URL infoServer,

@@ -87,7 +87,7 @@ public class StandbyCheckpointer {
       throws IOException {
     this.namesystem = ns;
     this.conf = conf;
-    this.checkpointConf = new CheckpointConf(conf); 
+    this.checkpointConf = new CheckpointConf(conf);
     this.thread = new CheckpointerThread();
     this.uploadThreadFactory = new ThreadFactoryBuilder().setDaemon(true)
         .setNameFormat("TransferFsImageUpload-%d").build();
@@ -129,7 +129,7 @@ public class StandbyCheckpointer {
   /**
    * Determine the address of the NN we are checkpointing
    * as well as our own HTTP address from the configuration.
-   * @throws IOException 
+   * @throws IOException
    */
   private void setNameNodeAddresses(Configuration conf) throws IOException {
     // Look up our own address.
@@ -191,6 +191,12 @@ public class StandbyCheckpointer {
     thread.interrupt();
   }
 
+  // 1.检查是否真的有新的txId需要save
+  // 2.调用FSImage.saveNamespace()保存ns到fsimage_{txId}或fsimage_rollback_{txId}；
+  //    ——注意多个image目录会用异步线程同时save
+  // 3.将上一步骤获得的txId上传(通过HTTP PUT)到active node
+  //    ——注意多个active node会通过线程池并行上传（实际上有问题，参见下文注释）
+  // 4.扫尾工作：标记最新上传时间(下次进入方法时步骤1会用到)、如果有interrupt需要正确需要上传工作、关闭资源池
   private void doCheckpoint() throws InterruptedException, IOException {
     assert canceler != null;
     final long txid;
@@ -206,6 +212,7 @@ public class StandbyCheckpointer {
 
       FSImage img = namesystem.getFSImage();
 
+      // 如果本次check发现ns最近写入的txId=上次checkpoint的txId(说明没有新增tx)，则跳出
       long prevCheckpointTxId = img.getStorage().getMostRecentCheckpointTxId();
       long thisCheckpointTxId = img.getCorrectLastAppliedOrWrittenTxId();
       assert thisCheckpointTxId >= prevCheckpointTxId;
@@ -247,6 +254,11 @@ public class StandbyCheckpointer {
     // Do this in a separate thread to avoid blocking transition to active, but don't allow more
     // than the expected number of tasks to run or queue up
     // See HDFS-4816
+    // 在ThreadPoolExecutor中，主流程是如果当前工作线程数小于coreSize，则会创建一个工作线程(并向其传递当前工作项)
+    // 为初始工作函数。但是此处coreSize=0，又是如何执行下去的呢？在主流程后，有一段代码判断是：如果添加工作项到队列
+    // 成功且当前线程数=0，则添加一个工作线程(传递空的初始工作项)，之后这个线程会从队列中取出工作项后执行。之后提交的
+    // 工作项会继续存入队列，但当前线程数已经>0，就会等待那个唯一的工作线程执行完前一个工作项后，从队列取出继续执行。
+    // 所以这里的代码其实并不能按预期工作：虽然用了线程池，但工作项却是按序挨个执行的
     ExecutorService executor = new ThreadPoolExecutor(0, activeNNAddresses.size(), 100,
         TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(activeNNAddresses.size()),
         uploadThreadFactory);
@@ -351,7 +363,7 @@ public class StandbyCheckpointer {
   public void cancelAndPreventCheckpoints(String msg) throws ServiceFailedException {
     synchronized (cancelLock) {
       // The checkpointer thread takes this lock and checks if checkpointing is
-      // postponed. 
+      // postponed.
       thread.preventCheckpointsFor(PREVENT_AFTER_CANCEL_MS);
 
       // Before beginning a checkpoint, the checkpointer thread
@@ -409,7 +421,7 @@ public class StandbyCheckpointer {
      * mode. We need to not only cancel any concurrent checkpoint,
      * but also prevent any checkpoints from racing to start just
      * after the cancel call.
-     * 
+     *
      * @param delayMs the number of MS for which checkpoints will be
      * prevented
      */
@@ -418,6 +430,9 @@ public class StandbyCheckpointer {
     }
 
     private void doWork() {
+      // 取的是checkpointCheckPeriod和checkpointPeriod间的较小值，即这是一段既检查tx数量又检查间隔时间的流程。
+      // checkpointCheckPeriod是多少时间检查一次tx数量是否超过阈值
+      // checkpointPeriod是多少时间执行一次checkpoint，不管tx数量是否超过阈值
       final long checkPeriod = 1000 * checkpointConf.getCheckPeriod();
       // Reset checkpoint time so that we don't always checkpoint
       // on startup.
@@ -449,7 +464,7 @@ public class StandbyCheckpointer {
           if (needCheckpoint) {
             LOG.info("Triggering a rollback fsimage for rolling upgrade.");
           } else if (uncheckpointed >= checkpointConf.getTxnCount()) {
-            LOG.info("Triggering checkpoint because there have been " + 
+            LOG.info("Triggering checkpoint because there have been " +
                 uncheckpointed + " txns since the last checkpoint, which " +
                 "exceeds the configured threshold " +
                 checkpointConf.getTxnCount());
