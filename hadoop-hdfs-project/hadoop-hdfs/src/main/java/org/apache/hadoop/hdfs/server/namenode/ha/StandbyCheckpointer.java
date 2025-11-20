@@ -431,8 +431,10 @@ public class StandbyCheckpointer {
 
     private void doWork() {
       // 取的是checkpointCheckPeriod和checkpointPeriod间的较小值，即这是一段既检查tx数量又检查间隔时间的流程。
-      // checkpointCheckPeriod是多少时间检查一次tx数量是否超过阈值
-      // checkpointPeriod是多少时间执行一次checkpoint，不管tx数量是否超过阈值
+      // checkpointCheckPeriod是多少时间检查一次tx数量是否超过阈值，默认1分钟
+      // checkpointPeriod是多少时间执行一次checkpoint，不管tx数量是否超过阈值，默认1小时
+      // 如果checkpointPeriod设置的比checkpointCheckPeriod还要小（当然这不太可能），我们不取其小值，则会出现、
+      // checkpointPeriod设置不起作用的效果
       final long checkPeriod = 1000 * checkpointConf.getCheckPeriod();
       // Reset checkpoint time so that we don't always checkpoint
       // on startup.
