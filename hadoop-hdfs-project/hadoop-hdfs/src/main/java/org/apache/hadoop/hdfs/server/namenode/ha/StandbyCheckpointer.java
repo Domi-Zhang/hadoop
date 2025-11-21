@@ -102,6 +102,11 @@ public class StandbyCheckpointer {
 
   private static final class CheckpointReceiverEntry {
     private long lastUploadTime;
+    // 这个字段标识Receiver(即NameNode)是否为Primary，满足以下条件的Receiver被认为是Primary：
+    // 1. the other is also a standby, or
+    // 2. the other is active, but already accepted another
+    // newer image, or
+    // 3. the other is active but has a recent enough image.
     private boolean isPrimary;
 
     CheckpointReceiverEntry() {
