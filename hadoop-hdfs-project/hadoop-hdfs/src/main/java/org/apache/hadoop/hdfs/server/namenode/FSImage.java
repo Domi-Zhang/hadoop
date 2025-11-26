@@ -1243,6 +1243,7 @@ public class FSImage implements Closeable {
     // nnf的取值可能有IMAGE_ROLLBACK("fsimage_rollback")或IMAGE("fsimage")
     StartupProgress prog = NameNode.getStartupProgress();
     prog.beginPhase(Phase.SAVING_CHECKPOINT);
+    // image存储路径由dfs.namenode.name.dir配置，可以设置为多个目录
     if (storage.getNumStorageDirs(NameNodeDirType.IMAGE) == 0) {
       throw new IOException("No image directories available!");
     }

@@ -1203,6 +1203,9 @@ public class FSDirectory implements Closeable {
     boolean isRename = (inode.getParent() != null);
     boolean added;
     try {
+      // 这里是关键，parent其实就是目标文件夹最后一段所代表的inode，例如将foo添加到/bar1/bar2目录下
+      // ，则下面的inode就是foo，parent就是bar2。
+      // addChild就是把inode添加到parent.children字段，它是一个按名称排序的inode数组
       added = parent.addChild(inode, true, existing.getLatestSnapshotId());
     } catch (QuotaExceededException e) {
       updateCountNoQuotaCheck(existing, pos, counts.negation());
@@ -1215,6 +1218,7 @@ public class FSDirectory implements Closeable {
       if (!isRename) {
         AclStorage.copyINodeDefaultAcl(inode);
       }
+      // 添加到inode映射表
       addToInodeMap(inode);
     }
     return INodesInPath.append(existing, inode, inode.getLocalNameBytes());
