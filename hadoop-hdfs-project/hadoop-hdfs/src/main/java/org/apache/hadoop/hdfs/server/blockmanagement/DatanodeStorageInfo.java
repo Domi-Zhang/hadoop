@@ -120,6 +120,38 @@ public class DatanodeStorageInfo {
   private volatile long remaining;
   private long blockPoolUsed;
 
+  /**
+   *
+   DN1.blockList        DN2.blockList
+   (BlockA)             (BlockB)
+        │                    │
+        ▼                    ▼
+   ┌────────────┐         ┌────────────┐
+   │ BlockA     │         │ BlockB     │
+   │[DN1,       │◄───┐    │[...,DN2,   │◄───┐
+   │ NUL,       │    │    │ NUL,       │    │
+   │ BlockB,...]│    │    │ BlockC,...]│    │
+   └────────────┘    │    └────────────┘    │
+        │            │         │            │
+        ▼            │         ▼            │
+   ┌─────────────┐   │    ┌────────────┐    │
+   │ BlockB      │   │    │ BlockC     │    │
+   │ [DN1,       │◄──┘    │[DN2,       │◄───┘
+   │  BlockA,    │        │ BlockB,    │
+   │  BlockC,...]│        │ NUL,...]   │
+   └─────────────┘        └────────────┘
+        │
+        ▼
+   ┌─────────────┐
+   │ BlockC      │
+   │ [...,DN1,   │
+   │  BlockB,    │
+   │  NUL,...]   │
+   └─────────────┘
+
+   注意上面BlockB在DN1和DN2的链表上都出现了，不过DN1这条链路中triplets[0:2]生效，DN2这条链路中是triplets[3:5]，在链表中哪些triplets元素
+   生效取决DNx与triplets[n]相等，具体方法参见BlockInfo.findStorageInfo
+   */
   private volatile BlockInfo blockList = null;
   private int numBlocks = 0;
 
@@ -247,6 +279,7 @@ public class DatanodeStorageInfo {
 
     // add to the head of the data-node list
     b.addStorage(this);
+    // 头插法将b插入到blockList中，插入后blockList=b、b.next=插入前的blockList
     blockList = b.listInsert(blockList, this);
     numBlocks++;
     return result;

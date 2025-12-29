@@ -68,6 +68,18 @@ public abstract class BlockInfo extends Block
    * per replica is 42 bytes (LinkedList#Entry object per replica) versus 16
    * bytes using the triplets.
    */
+  /**
+   *    triplets 是一个 Object[] 数组，采用"三元组"（triplet）的设计模式，每个数据节点存储信息占用 3 个数组位置：
+   *    triplets[index*3 + 0] = DatanodeStorageInfo  // 存储信息
+   *    triplets[index*3 + 1] = BlockInfo            // 前一块引用
+   *    triplets[index*3 + 2] = BlockInfo            // 后一块引用
+   *    假设一个块有 3 个副本，存储在 3 个不同的数据节点上：
+   *    数组索引:    [0]        [1]        [2]        [3]        [4]        [5]        [6]        [7]        [8]
+   *    内容:     Storage0   Prev0      Next0      Storage1   Prev1      Next1      Storage2   Prev2      Next2
+   *               └───── 第0个数据节点 ─────┘        └───── 第1个数据节点 ─────┘         └───── 第2个数据节点 ─────┘
+   *
+   *    如果Block只有1个副本(Replica)，则意味着triplets始终只有3个元素
+   */
   protected Object[] triplets;
 
   private BlockUnderConstructionFeature uc;
