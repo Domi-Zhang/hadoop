@@ -123,20 +123,20 @@ public class DatanodeStorageInfo {
   /**
    *
    DN1.blockList        DN2.blockList
-   (BlockA)             (BlockB)
+     (BlockA)             (BlockB)
         │                    │
         ▼                    ▼
    ┌────────────┐         ┌────────────┐
    │ BlockA     │         │ BlockB     │
-   │[DN1,       │◄───┐    │[...,DN2,   │◄───┐
-   │ NUL,       │    │    │ NUL,       │    │
-   │ BlockB,...]│    │    │ BlockC,...]│    │
-   └────────────┘    │    └────────────┘    │
-        │            │         │            │
-        ▼            │         ▼            │
-   ┌─────────────┐   │    ┌────────────┐    │
-   │ BlockB      │   │    │ BlockC     │    │
-   │ [DN1,       │◄──┘    │[DN2,       │◄───┘
+   │[DN1,       │         │[...,DN2,   │
+   │ NUL,       │         │ NUL,       │
+   │ BlockB,...]│         │ BlockC,...]│
+   └────────────┘         └────────────┘
+        │                      │
+        ▼                      ▼
+   ┌─────────────┐        ┌────────────┐
+   │ BlockB      │        │ BlockC     │
+   │ [DN1,       │        │[DN2,       │
    │  BlockA,    │        │ BlockB,    │
    │  BlockC,...]│        │ NUL,...]   │
    └─────────────┘        └────────────┘

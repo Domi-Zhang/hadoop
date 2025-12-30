@@ -238,7 +238,8 @@ public class BlockManager implements BlockStatsMXBean {
   private final BlockReportProcessingThread blockReportThread =
       new BlockReportProcessingThread();
 
-  /** Store blocks -> datanodedescriptor(s) map of corrupt replicas */
+  /** Store blocks -> datanodedescriptor(s) map of corrupt replicas
+   * 一般来自于扫描器发现的错误的块副本*/
   final CorruptReplicasMap corruptReplicas = new CorruptReplicasMap();
 
   /** Blocks to be invalidated. */
@@ -259,6 +260,7 @@ public class BlockManager implements BlockStatsMXBean {
   /**
    * Maps a StorageID to the set of blocks that are "extra" for this
    * DataNode. We'll eventually remove these extras.
+   * 当管理员降低HDFS副本系数时会产生多余块副本，excessReplicateMap存储StorageId（代表DN）->Collection<Block>映射
    */
   public final Map<String, LightWeightHashSet<Block>> excessReplicateMap =
     new HashMap<>();
