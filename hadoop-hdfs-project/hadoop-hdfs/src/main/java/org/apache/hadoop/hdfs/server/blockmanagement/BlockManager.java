@@ -239,10 +239,13 @@ public class BlockManager implements BlockStatsMXBean {
       new BlockReportProcessingThread();
 
   /** Store blocks -> datanodedescriptor(s) map of corrupt replicas
-   * 一般来自于扫描器发现的错误的块副本*/
+   * 可能来自于客户端通过ClientProtocol.reportBadBlocks上报或数据节点通过DatanodeProtocol.reportBadBlocks汇报给NN
+   * ，进而加入到corruptReplica来，核心存储结构是Map<Block, Map<DatanodeDescriptor, Reason>> corruptReplicasMap*/
   final CorruptReplicasMap corruptReplicas = new CorruptReplicasMap();
 
-  /** Blocks to be invalidated. */
+  /** Blocks to be invalidated.
+   * 等待删除的块副本，可以视为corruptReplicas和excessReplicateMap的并集，加入这个集合中的副本会由NN向对应的DN下发删除指令.
+   * InvalidateBlocks中的核心存储结构是Map<DatanodeInfo, LightWeightHashSet<Block>> node2blocks*/
   private final InvalidateBlocks invalidateBlocks;
   
   /**
@@ -251,6 +254,14 @@ public class BlockManager implements BlockStatsMXBean {
    * new active. This is to make sure that this NameNode has been
    * notified of all block deletions that might have been pending
    * when the failover happened.
+   * 在信息不完整或系统状态不确定时，不做可能错误的决定，而是等待更明确的信息，例如：
+   * 时间线：
+   *   T1: Active NN删除文件，块A应该被删除
+   *   T2: DN1收到删除指令，删除了块A
+   *   T3: **NN故障，Standby NN接管**
+   *   T4: 新Active NN收到DN2的块报告：报告块A存在
+   *   T5: 新Active NN收到DN3的块报告：报告块A存在
+   * 问题： 新Active NN在T3时刻可能还没收到T1的删除操作日志，它看到DN2和DN3报告块A存在，但DN1没有报告，会认为块A副本不足。
    */
   private final LinkedHashSet<Block> postponedMisreplicatedBlocks =
       new LinkedHashSet<Block>();
@@ -268,9 +279,14 @@ public class BlockManager implements BlockStatsMXBean {
   /**
    * Store set of Blocks that need to be replicated 1 or more times.
    * We also store pending replication-orders.
+   * NameNode在处理DN的数据块汇报时，如果检查到副本数量不够，就会将数据块加入到neededReplications。
+   * 随后NN发送复制请求到DN后，会将数据块从neededReplications移动到pendingReplications
    */
   public final UnderReplicatedBlocks neededReplications = new UnderReplicatedBlocks();
 
+  /**
+   * 参见neededReplications的说明，当数据块复制成功后DN将块副本报告上来（给NN）后，该数据块会从pendingReplications删除
+   */
   @VisibleForTesting
   final PendingReplicationBlocks pendingReplications;
 
@@ -296,7 +312,9 @@ public class BlockManager implements BlockStatsMXBean {
   /** value returned by MAX_CORRUPT_FILES_RETURNED */
   final int maxCorruptFilesReturned;
 
+  // 默认0.32
   final float blocksInvalidateWorkPct;
+  // 默认2
   final int blocksReplWorkMultiplier;
 
   // whether or not to issue block encryption keys.
@@ -1583,6 +1601,7 @@ public class BlockManager implements BlockStatsMXBean {
    * @return number of blocks scheduled for replication during this iteration.
    */
   int computeReplicationWork(int blocksToProcess) {
+    // 这个二维数组中第一维是priority，即按优先级分成多个BlockInfo数组
     List<List<BlockInfo>> blocksToReplicate = null;
     namesystem.writeLock();
     try {
@@ -1597,7 +1616,7 @@ public class BlockManager implements BlockStatsMXBean {
 
   /** Replicate a set of blocks
    *
-   * @param blocksToReplicate blocks to be replicated, for each priority
+   * @param blocksToReplicate blocks to be replicated, for each priority，来自于neededReplications
    * @return the number of blocks scheduled for replication
    */
   @VisibleForTesting
@@ -1644,6 +1663,11 @@ public class BlockManager implements BlockStatsMXBean {
         }
 
         synchronized (neededReplications) {
+          // 这个方法中会调用rw.getSrcNode().addBlockToBeReplicated将block和targetNodes加入到rw的srcNode中，即
+          // “replicateBlocks.offer(new BlockTargetPair(block, targets))”，随后DN在向NN上报心跳的时候，DN会从replicateBlocks
+          // 获取block和targets组成副本拷贝的Command（DNA_TRANSFER）返回给DN。
+          // 注意DN和NN之间大都通过心跳进行信息和命令交换的：DN上报块副本信息，NN在心跳请求的响应中下发需要DN执行的命令。
+          // 方法返回前会将block从neededReplications中remove。
           if (validateReplicationWork(rw)) {
             scheduledWork++;
           }
@@ -1681,10 +1705,28 @@ public class BlockManager implements BlockStatsMXBean {
       NumberReplicas numReplicas, int pendingReplicaNum) {
     int required = getExpectedLiveRedundancyNum(block, numReplicas);
     int numEffectiveReplicas = numReplicas.liveReplicas() + pendingReplicaNum;
+    // （有效副本足够（活副本 + 待复制副本））且 （待复制任务在进行中，或有机架策略满足）
     return (numEffectiveReplicas >= required) &&
         (pendingReplicaNum > 0 || isPlacementPolicySatisfied(block));
   }
 
+  /**
+   *   核心职责：为一个具体的块安排复制工作
+   *   返回结果：包含完整复制信息的ReplicationWork对象，或null（不需要复制）
+   *   流程：
+   *   1. 块状态检查
+   *      ↓
+   *   2. 选择源DataNode
+   *      ↓
+   *   3. 副本充足性验证
+   *      ↓
+   *   4. 计算机架策略
+   *      ↓
+   *   5. 创建ReplicationWork
+   * @param block
+   * @param priority
+   * @return
+   */
   @VisibleForTesting
   ReplicationWork scheduleReplication(BlockInfo block, int priority) {
     // skip abandoned block or block reopened for append
@@ -1698,8 +1740,10 @@ public class BlockManager implements BlockStatsMXBean {
     List<DatanodeDescriptor> containingNodes = new ArrayList<>();
     List<DatanodeStorageInfo> liveReplicaNodes = new ArrayList<>();
     NumberReplicas numReplicas = new NumberReplicas();
+    // 选择最佳源节点DataNode
     DatanodeDescriptor srcNode = chooseSourceDatanode(block, containingNodes,
         liveReplicaNodes, numReplicas, priority);
+    // 计算需要多少活副本
     short requiredReplication = getExpectedLiveRedundancyNum(block,
         numReplicas);
     if (srcNode == null) { // block can not be replicated from any node
@@ -1712,7 +1756,9 @@ public class BlockManager implements BlockStatsMXBean {
     // not included in the numReplicas.liveReplicas() count
     assert liveReplicaNodes.size() >= numReplicas.liveReplicas();
 
+    // 检查待复制副本数
     int pendingNum = pendingReplications.getNumReplicas(block);
+    // 是否已有足够有效副本
     if (hasEnoughEffectiveReplicas(block, numReplicas, pendingNum)) {
       neededReplications.remove(block, priority);
       blockLog.debug("BLOCK* Removing {} from neededReplications as" +
@@ -1781,6 +1827,8 @@ public class BlockManager implements BlockStatsMXBean {
 
     int numEffectiveReplicas = numReplicas.liveReplicas() + pendingNum;
     // remove from neededReplications
+    // 设想如果期望的副本数(requiredReplication)为5。当前有1个live的副本，有1个正在拷贝(pendingNum)，此处校验本次调用计算出的复制目标
+    // 节点(target)必须大于等于3(1+1+3>=5)，才说明所有的replication work都已经正常生成，可以从neededReplications中remove了
     if(numEffectiveReplicas + targets.length >= requiredReplication) {
       neededReplications.remove(block, priority);
     }
@@ -1875,6 +1923,12 @@ public class BlockManager implements BlockStatsMXBean {
    *
    * In addition form a list of all nodes containing the block
    * and calculate its replication numbers.
+   *
+   *   1. 排除损坏副本节点
+   *   2. 排除退役/维护中节点
+   *   3. 排除达到复制流限制节点
+   *   4. 随机选择避免热点
+   *   5. 优先选择正常活节点
    *
    * @param block Block for which a replication source is needed
    * @param containingNodes List to be populated with nodes found to contain the 
@@ -4000,7 +4054,7 @@ public class BlockManager implements BlockStatsMXBean {
         try {
           // Process replication work only when active NN is out of safe mode.
           if (isPopulatingReplQueues()) {
-            computeDatanodeWork();
+            computeDatanodeWork();// 核心是调用computeReplicationWork和computeInvalidateWork
             processPendingReplications();
             rescanPostponedMisreplicatedBlocks();
             lastReplicationCycleTS.set(Time.monotonicNow());
@@ -4049,6 +4103,11 @@ public class BlockManager implements BlockStatsMXBean {
     final int nodesToProcess = (int) Math.ceil(numlive
         * this.blocksInvalidateWorkPct);
 
+    // 关键点：
+    // 1. 针对每个Block获取最佳SrcNode
+    // 2. 评估需要增加多少个副本，并获取targets（节点列表）
+    // 3. 将Block和targets添加到DatanodeManager.replicateBlocks
+    // 4. DN在向NN上报心跳消息的时候，NN在心跳响应中根据replicateBlocks生成Command（DNA_INVALIDATE）并返回
     int workFound = this.computeReplicationWork(blocksToProcess);
 
     // Update counters
@@ -4059,6 +4118,7 @@ public class BlockManager implements BlockStatsMXBean {
     } finally {
       namesystem.writeUnlock();
     }
+    // 这里的流程和computeReplicationWork差不多，关键点也是将Block添加到DatanodeManager中，在心跳中生成Command（DNA_INVALIDATE）
     workFound += this.computeInvalidateWork(nodesToProcess);
     return workFound;
   }

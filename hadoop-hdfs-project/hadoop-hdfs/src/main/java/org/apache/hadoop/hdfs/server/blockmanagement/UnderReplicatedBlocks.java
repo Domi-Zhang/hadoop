@@ -365,6 +365,7 @@ class UnderReplicatedBlocks implements Iterable<BlockInfo> {
    * is met or iteration reaches the end of the lowest priority list, in which
    * case bookmarks for each block list are reset to the heads of their
    * respective lists.
+   * 注意此方法和add方法都有synchronized声明进行同步保护
    *
    * @param blocksToProcess - number of blocks to fetch from underReplicated
    *                        blocks.
